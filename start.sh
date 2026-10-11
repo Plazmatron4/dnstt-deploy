@@ -89,6 +89,24 @@ echo "[dnstt] starting tunnel..."
 echo $! >logs/dnstt.pid
 
 # --------------------------------------------------------------------- start UI
+# A prebuilt UI may ship gzipped. Prefer it: no compiler involved, and no build
+# step that can hang on a panel.
+if [ ! -x bin/webui ]; then
+	case "$(uname -m 2>/dev/null)" in
+		aarch64|arm64) UI_GZ="$ROOT/webui-linux-arm64.gz" ;;
+		*)             UI_GZ="$ROOT/webui-linux-amd64.gz" ;;
+	esac
+	for gz in "$ROOT/bin/webui.gz" "$UI_GZ" "$ROOT/webui.gz"; do
+		if [ -f "$gz" ]; then
+			echo "[dnstt] unpacking prebuilt web UI ($gz)..."
+			if gzip -dc "$gz" >bin/webui 2>/dev/null; then
+				chmod +x bin/webui 2>/dev/null || true
+				break
+			fi
+		fi
+	done
+fi
+
 if [ ! -x bin/webui ]; then
 	echo "[dnstt] building web UI..."
 	( cd webui && go build -o "$ROOT/bin/webui" . ) || echo "[dnstt] UI build failed, running headless"

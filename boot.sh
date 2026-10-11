@@ -31,12 +31,34 @@ cd "$DIR"
 echo "[boot] installing into $DIR"
 
 # ------------------------------------------------------------- start.sh + web UI
-for f in start.sh webui/main.go webui/go.mod; do
+for f in webui/main.go webui/go.mod; do
 	mkdir -p "$(dirname "$f")"
 	[ -s "$f" ] && continue
 	echo "[boot] fetching $f"
 	curl -fsSL "$RAW/$f" -o "$f" || { echo "[boot] could not fetch $f"; exit 1; }
 done
+
+# start.sh keeps changing; always take the fresh copy (a few KB)
+echo "[boot] fetching start.sh"
+curl -fsSL "$RAW/start.sh" -o start.sh || { echo "[boot] could not fetch start.sh"; exit 1; }
+
+# --------------------------------------------------- prebuilt web UI (fast path)
+# Compiling on a panel can hang, and pushing a multi-MB file over the panel's
+# SFTP dies mid-transfer. Pulling a gzipped binary from GitHub does neither.
+case "$(uname -m 2>/dev/null)" in
+	aarch64|arm64) UI_GZ="webui-linux-arm64.gz" ;;
+	*)             UI_GZ="webui-linux-amd64.gz" ;;
+esac
+if [ ! -x bin/webui ]; then
+	mkdir -p bin
+	echo "[boot] fetching prebuilt web UI ($UI_GZ)..."
+	if curl -fsSL "$RAW/$UI_GZ" -o bin/webui.gz; then
+		if gzip -dc bin/webui.gz >bin/webui 2>/dev/null; then
+			chmod +x bin/webui 2>/dev/null || true
+			echo "[boot] web UI ready"
+		fi
+	fi
+fi
 
 # --------------------------------------------------------------- dnstt source
 if [ ! -f dnstt-server/main.go ] && [ ! -f dnstt/dnstt-server/main.go ]; then
